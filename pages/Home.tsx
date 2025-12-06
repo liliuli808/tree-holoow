@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Post, Category } from '../types';
 import { PostCard } from '../components/PostCard';
-import { Heart, Gamepad2, Music, Clapperboard, Users, Camera, Flame, Ghost } from 'lucide-react';
+import { Heart, Gamepad2, Music, Clapperboard, Users, Camera, Flame, Ghost, Loader2 } from 'lucide-react';
 
 interface HomeProps {
   posts: Post[];
   onLike: (id: string) => void;
   onComment: (id: string) => void;
   loading: boolean;
+  onLoadMore: () => void;
+  hasMore: boolean;
+  isLoadingMore: boolean;
 }
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
@@ -21,10 +24,12 @@ const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   [Category.TRASH]: <Ghost className="text-gray-500" size={24} />,
 };
 
-export const Home: React.FC<HomeProps> = ({ posts, onLike, onComment, loading }) => {
+export const Home: React.FC<HomeProps> = ({ posts, onLike, onComment, loading, onLoadMore, hasMore, isLoadingMore }) => {
   const [activeCategory, setActiveCategory] = useState<Category>(Category.ALL);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  
+  // Observer ref for infinite scrolling
+  const observerTarget = useRef<HTMLDivElement>(null);
 
   // Filter posts
   const displayedPosts = activeCategory === Category.ALL 
@@ -34,12 +39,10 @@ export const Home: React.FC<HomeProps> = ({ posts, onLike, onComment, loading })
   const handleRefresh = async () => {
     if (window.scrollY === 0) {
       setIsRefreshing(true);
-      // Simulate refresh
       setTimeout(() => setIsRefreshing(false), 1500);
     }
   };
 
-  // Detect pull down (simplified for web)
   useEffect(() => {
     const handleScroll = () => {
        if (window.scrollY < -50) handleRefresh();
@@ -47,6 +50,28 @@ export const Home: React.FC<HomeProps> = ({ posts, onLike, onComment, loading })
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  // Infinite Scroll Observer
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isLoadingMore && !loading) {
+          onLoadMore();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current);
+    }
+
+    return () => {
+      if (observerTarget.current) {
+        observer.unobserve(observerTarget.current);
+      }
+    };
+  }, [hasMore, isLoadingMore, loading, onLoadMore]);
 
   return (
     <div className="pb-24 bg-gray-50 min-h-screen">
@@ -57,7 +82,7 @@ export const Home: React.FC<HomeProps> = ({ posts, onLike, onComment, loading })
            <div className="text-xs text-gray-400">匿名 · 真实 · 温暖</div>
         </div>
         
-        {/* Horizontal Category Slider (Tabs) */}
+        {/* Horizontal Category Slider */}
         <div className="overflow-x-auto no-scrollbar flex items-center px-4 pb-0 space-x-6 border-b border-gray-100">
            {Object.values(Category).map((cat) => (
              <button
@@ -75,7 +100,7 @@ export const Home: React.FC<HomeProps> = ({ posts, onLike, onComment, loading })
         </div>
       </div>
 
-      {/* Grid Categories (Visual Quick Access) - Only on 'All' tab */}
+      {/* Grid Categories - Only on 'All' tab */}
       {activeCategory === Category.ALL && (
         <div className="bg-white p-4 mb-2 grid grid-cols-4 gap-4">
           {[Category.LOVE, Category.GAME, Category.MUSIC, Category.MOVIE, Category.FRIENDS, Category.MOMENT, Category.CONFESSION, Category.TRASH].map((cat) => (
@@ -103,7 +128,9 @@ export const Home: React.FC<HomeProps> = ({ posts, onLike, onComment, loading })
       {/* Feed List */}
       <div className="max-w-md mx-auto sm:max-w-xl md:max-w-2xl">
         {loading ? (
-          <div className="p-8 text-center text-gray-400">加载中...</div>
+          <div className="p-8 flex justify-center text-gray-400">
+             <Loader2 className="animate-spin text-brand-500" />
+          </div>
         ) : displayedPosts.length === 0 ? (
           <div className="p-12 text-center text-gray-400 flex flex-col items-center">
             <Ghost size={48} className="mb-4 opacity-20" />
@@ -120,8 +147,18 @@ export const Home: React.FC<HomeProps> = ({ posts, onLike, onComment, loading })
           ))
         )}
         
-        <div className="h-10 text-center text-xs text-gray-300 py-4">
-          ~ 到底啦 ~
+        {/* Infinite Scroll Trigger / Loading Indicator */}
+        <div ref={observerTarget} className="h-16 flex items-center justify-center text-xs text-gray-300 py-4">
+          {isLoadingMore ? (
+             <div className="flex items-center gap-2">
+               <Loader2 size={16} className="animate-spin" />
+               加载更多...
+             </div>
+          ) : hasMore ? (
+             <span className="opacity-0">Trigger Load</span> 
+          ) : (
+             displayedPosts.length > 0 && "~ 到底啦 ~"
+          )}
         </div>
       </div>
     </div>
