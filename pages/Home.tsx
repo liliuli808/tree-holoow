@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Post, Category } from '../types';
-import { PostCard } from '../components/Components';
+import { PostCard } from '../components/PostCard';
 import { Heart, Gamepad2, Music, Clapperboard, Users, Camera, Flame, Ghost } from 'lucide-react';
 
 interface HomeProps {

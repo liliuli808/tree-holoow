@@ -1,13 +1,27 @@
 import { GoogleGenAI } from "@google/genai";
 
-const apiKey = process.env.API_KEY || '';
-// Initialize logic moved to check to prevent crash if no key, 
-// though prompts say assume key exists.
+// Safely access process.env to prevent crashes in non-build environments
+const getApiKey = () => {
+  try {
+    // Check if 'process' exists before accessing it
+    if (typeof process !== 'undefined' && process.env) {
+      return process.env.API_KEY || '';
+    }
+  } catch (e) {
+    console.warn("process.env access failed", e);
+  }
+  return '';
+};
+
+const apiKey = getApiKey();
+
 let ai: GoogleGenAI | null = null;
 
 try {
   if (apiKey) {
     ai = new GoogleGenAI({ apiKey });
+  } else {
+    console.warn("No API Key found. AI features will be disabled.");
   }
 } catch (e) {
   console.error("Failed to initialize Gemini Client", e);
