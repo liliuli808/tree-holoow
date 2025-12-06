@@ -1,0 +1,8 @@
+{
+  "name": "树洞交友 (Tree Hollow)",
+  "description": "An anonymous social networking application designed for sharing thoughts, finding friends, and exploring interests without the pressure of real-identity exposure. Features include topic-based feeds, rich media posts, and private secure messaging.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
