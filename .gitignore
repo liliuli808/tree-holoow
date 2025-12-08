@@ -8,8 +8,6 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-android
-ios
 dist
 dist-ssr
 *.local
