@@ -29,12 +29,9 @@ export const uploadFile = async (file: File): Promise<{ path: string }> => {
 
   // The 'api' wrapper defaults to JSON, so we need to override headers for FormData.
   // We remove Content-Type and let the browser set it correctly with the boundary.
-  const response = await fetch('http://localhost:8080/api/v1/upload', {
+  const response = await fetch('https://51a26750.telegraph-image-8n3.pages.dev/upload', {
     method: 'POST',
     body: formData,
-    headers: {
-      'Authorization': `Bearer ${localStorage.getItem('token')}`,
-    },
   });
 
   if (!response.ok) {

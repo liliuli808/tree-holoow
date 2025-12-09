@@ -22,12 +22,13 @@ export default function App() {
 
   const handleLogin = (token: string) => {
     try {
-      const decodedToken: { userID: number; email: string; exp: number } = jwtDecode(token);
+      const decodedToken: { user_id: number; email: string; exp: number } = jwtDecode(token);
+
       if (decodedToken.exp * 1000 > Date.now()) {
         setUser({
-          id: decodedToken.userID.toString(),
+          id: decodedToken.user_id.toString(),
           nickname: decodedToken.email.split('@')[0],
-          avatarUrl: `https://picsum.photos/seed/${decodedToken.userID}/100`,
+          avatarUrl: `https://picsum.photos/seed/${decodedToken.user_id}/100`,
           isAnonymous: false,
         });
         localStorage.setItem('token', token);
@@ -139,7 +140,7 @@ export default function App() {
               } />
               <Route path="/radio" element={<div className="pt-safe"><Radio /></div>} />
               <Route path="/messages" element={<Messages sessions={sessions} />} />
-              <Route path="/chat/:id" element={<ChatDetail sessions={sessions} onSendMessage={handleSendMessage} currentUserId={user.id} />} />
+              <Route path="/chat/:id" element={<ChatDetail sessions={sessions} onSendMessage={handleSendMessage} currentuser_id={user.id} />} />
               <Route path="/profile" element={<Profile user={user} posts={posts} onLogout={handleLogout} />} />
               <Route path="/create" element={<>
                   <div className="pt-safe">
