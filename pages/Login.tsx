@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User } from '../types';
-import { PenTool, Mail, Lock, User as UserIcon, ShieldCheck, ChevronRight, Sparkles } from 'lucide-react';
+import { PenTool, Mail, Lock, ShieldCheck, ChevronRight, Sparkles } from 'lucide-react';
 import { login, register, sendVerificationCode } from '../services/authService';
 
 export const Login: React.FC<{ onLogin: (token: string) => void }> = ({ onLogin }) => {
@@ -10,7 +10,6 @@ export const Login: React.FC<{ onLogin: (token: string) => void }> = ({ onLogin 
 
   // Form State
   const [formData, setFormData] = useState({
-    username: '',
     email: '',
     code: '',
     password: ''
@@ -51,7 +50,7 @@ export const Login: React.FC<{ onLogin: (token: string) => void }> = ({ onLogin 
       setLoading(false);
       return;
     }
-    if (isRegister && (!formData.code || !formData.username)) {
+    if (isRegister && !formData.code) {
       alert("请填写完整注册信息");
       setLoading(false);
       return;
@@ -59,7 +58,7 @@ export const Login: React.FC<{ onLogin: (token: string) => void }> = ({ onLogin 
 
     try {
       if (isRegister) {
-        await register(formData.username, formData.email, formData.code, formData.password);
+        await register(formData.email, formData.code, formData.password);
         alert("注册成功，请登录！");
         setIsRegister(false); // Switch to login form
       } else {
@@ -117,20 +116,6 @@ export const Login: React.FC<{ onLogin: (token: string) => void }> = ({ onLogin 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           
-          {/* Username (Register Only) */}
-          {isRegister && (
-            <div className="relative group">
-                <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-brand-500 transition-colors" size={20} />
-                <input
-                    type="text"
-                    placeholder="用户名"
-                    className="w-full pl-12 pr-4 py-3.5 bg-gray-50 border-2 border-transparent focus:border-brand-200 focus:bg-white rounded-xl outline-none transition-all font-medium text-gray-700"
-                    value={formData.username}
-                    onChange={e => setFormData({...formData, username: e.target.value})}
-                />
-            </div>
-          )}
-
           {/* Email */}
           <div className="relative group">
             <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-brand-500 transition-colors" size={20} />

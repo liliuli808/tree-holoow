@@ -21,10 +21,10 @@ export const login = async (email: string, password: string): Promise<string> =>
   return data.token;
 };
 
-export const register = async (username: string, email: string, code: string, password: string): Promise<{id: string, email: string}> => {
+export const register = async (email: string, code: string, password: string): Promise<{id: string, email: string}> => {
   const data = await api('/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ username, email, code, password }),
+    body: JSON.stringify({ email, code, password }),
   });
 
   if (!data || !data.id || !data.email) {
