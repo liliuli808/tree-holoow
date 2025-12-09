@@ -42,6 +42,7 @@ export interface Post {
   isLiked: boolean;
   comments: Comment[];
   viewCount: number;
+  tags?: { name: string }[];
 }
 
 export interface ChatMessage {
