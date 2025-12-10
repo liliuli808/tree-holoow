@@ -7,7 +7,8 @@ export enum Category {
   FRIENDS = '交友',
   MOMENT = '此刻',
   CONFESSION = '表白',
-  TRASH = '吐槽'
+  TRASH = '吐槽',
+  IMAGE = "IMAGE"
 }
 
 export interface User {

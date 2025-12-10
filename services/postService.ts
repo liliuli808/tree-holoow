@@ -3,6 +3,8 @@ import { Post, User } from '../types';
 
 const PAGE_SIZE = 10;
 
+export const API_BASE_URL = 'https://51a26750.telegraph-image-8n3.pages.dev';
+
 interface PaginatedPostsResponse {
   data: Post[];
   total: number;
@@ -23,13 +25,13 @@ export const getPostsForUser = async (userId: string, page: number): Promise<Pag
  * @param file The file to upload.
  * @returns The path to the uploaded file on the server.
  */
-export const uploadFile = async (file: File): Promise<{ path: string }> => {
+export const uploadFile = async (file: File): Promise<{ src: string }[]> => {
   const formData = new FormData();
   formData.append('file', file);
 
   // The 'api' wrapper defaults to JSON, so we need to override headers for FormData.
   // We remove Content-Type and let the browser set it correctly with the boundary.
-  const response = await fetch('https://51a26750.telegraph-image-8n3.pages.dev/upload', {
+  const response = await fetch(`${API_BASE_URL}/upload`, {
     method: 'POST',
     body: formData,
   });

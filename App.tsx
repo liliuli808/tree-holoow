@@ -12,6 +12,55 @@ import { CreatePostModal } from './components/CreatePostModal';
 import { createPost, getPostsForUser } from './services/postService';
 import { jwtDecode } from 'jwt-decode';
 
+// 后端帖子数据接口
+interface BackendPost {
+  ID: number;
+  CreatedAt: string;
+  UpdatedAt: string;
+  DeletedAt: null | string;
+  user_id: number;
+  user: {
+    ID: number;
+    CreatedAt: string;
+    UpdatedAt: string;
+    DeletedAt: string | null;
+    email: string;
+  };
+  type: string;
+  text_content: string;
+  media_urls: string[] | null;
+  status: string;
+}
+
+// 后端帖子响应接口
+interface PostsResponse {
+  data: BackendPost[];
+  page: number;
+  total: number;
+}
+
+// 转换函数：后端数据格式 -> 前端数据格式
+const transformBackendPostToFrontend = (backendPost: BackendPost): Post => {
+  return {
+    id: backendPost.ID.toString(),
+    userId: backendPost.user_id.toString(),
+    userNickname: backendPost.user.email.split('@')[0],
+    userAvatar: `https://picsum.photos/seed/${backendPost.user.ID}/100`,
+    category: 'text', // 默认值，后端暂无此字段
+    content: backendPost.text_content || '',
+    images: backendPost.media_urls || [],
+    videoUrl: undefined,
+    audioUrl: undefined,
+    isLivePhoto: false,
+    timestamp: new Date(backendPost.CreatedAt).getTime(),
+    likes: 0, // 默认值，后端暂无此字段
+    isLiked: false, // 默认值，后端暂无此字段
+    comments: [], // 默认值，后端暂无此字段
+    viewCount: 0, // 默认值，后端暂无此字段
+    tags: [], // 默认值，后端暂无此字段
+  };
+};
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -28,7 +77,7 @@ export default function App() {
         setUser({
           id: decodedToken.user_id.toString(),
           nickname: decodedToken.email.split('@')[0],
-          avatarUrl: `https://picsum.photos/seed/${decodedToken.user_id}/100`,
+          avatarUrl: `https://picsum.photos/seed/${decodedToken.user_id}/100`, // 修复：移除空格
           isAnonymous: false,
         });
         localStorage.setItem('token', token);
@@ -52,20 +101,20 @@ export default function App() {
     if (!user) return;
     setIsLoadingPosts(true);
     try {
-      const response = await getPostsForUser(user.id, pageNum);
-      const newPosts = response.data || [];
+      const response: PostsResponse = await getPostsForUser(user.id, pageNum);
+      const newPosts = (response.data || []).map(transformBackendPostToFrontend);
+      
       if (pageNum === 1) {
         setPosts(newPosts);
       } else {
         setPosts(prev => [...prev, ...newPosts]);
       }
-      if ((posts.length + newPosts.length) >= response.total) {
-        setHasMore(false);
-      } else {
-        setHasMore(true);
-      }
+      
+      const totalLoaded = pageNum === 1 ? newPosts.length : posts.length + newPosts.length;
+      setHasMore(totalLoaded < response.total);
     } catch (error) {
       console.error("Failed to fetch posts:", error);
+      setPosts(pageNum === 1 ? [] : posts);
     } finally {
       setIsLoadingPosts(false);
     }
@@ -74,6 +123,7 @@ export default function App() {
   useEffect(() => {
     if (user) {
       fetchPosts(1);
+      setPage(1); // 重置页码
     }
   }, [user, fetchPosts]);
 
@@ -104,10 +154,11 @@ export default function App() {
         text_content: data.content || '',
         media_urls: data.images || [],
         tags: data.tags || [],
-        status: 'published' as 'draft' | 'published',
+        status: 'published' as const,
       };
-      const newPost = await createPost(payload);
-      setPosts([newPost, ...posts]);
+      const newPost: BackendPost = await createPost(payload);
+      const frontendPost = transformBackendPostToFrontend(newPost);
+      setPosts(prev => [frontendPost, ...prev]);
     } catch (error) {
       console.error("Failed to create post:", error);
     }
@@ -115,6 +166,7 @@ export default function App() {
 
   const handleSendMessage = async (sessionId: string, text: string) => {
     console.log("Sending message:", text);
+    // TODO: 实现发送消息逻辑
   };
 
   return (
@@ -140,7 +192,7 @@ export default function App() {
               } />
               <Route path="/radio" element={<div className="pt-safe"><Radio /></div>} />
               <Route path="/messages" element={<Messages sessions={sessions} />} />
-              <Route path="/chat/:id" element={<ChatDetail sessions={sessions} onSendMessage={handleSendMessage} currentuser_id={user.id} />} />
+              <Route path="/chat/:id" element={<ChatDetail sessions={sessions} onSendMessage={handleSendMessage} currentUserId={user.id} />} />
               <Route path="/profile" element={<Profile user={user} posts={posts} onLogout={handleLogout} />} />
               <Route path="/create" element={<>
                   <div className="pt-safe">
