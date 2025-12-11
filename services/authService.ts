@@ -26,9 +26,9 @@ export const register = async (email: string, code: string, password: string): P
     method: 'POST',
     body: JSON.stringify({ email, code, password }),
   });
-
-  if (!data || !data.id || !data.email) {
+  
+  if (!data || !data.user.id || !data.user.email) {
     throw new Error('User ID or email not found in register response');
   }
-  return { id: data.id, email: data.email };
+  return { id: data.user.id, email: data.user.email };
 };
