@@ -7,9 +7,11 @@ import { Messages } from './pages/Messages';
 import { ChatDetail } from './pages/ChatDetail';
 import { Login } from './pages/Login';
 import { Profile } from './pages/Profile';
+import { PostDetail } from './pages/PostDetail';
 import { Navigation } from './components/Navigation';
 import { CreatePostModal } from './components/CreatePostModal';
 import { createPost, getPostsForUser } from './services/postService';
+import { getAllTags, Tag } from './services/tagService';
 import { jwtDecode } from 'jwt-decode';
 
 // 后端帖子数据接口
@@ -19,6 +21,10 @@ interface BackendPost {
   UpdatedAt: string;
   DeletedAt: null | string;
   user_id: number;
+  tag: {
+    ID: number;
+    name: string
+  }
   user: {
     ID: number;
     CreatedAt: string;
@@ -57,7 +63,10 @@ const transformBackendPostToFrontend = (backendPost: BackendPost): Post => {
     isLiked: false, // 默认值，后端暂无此字段
     comments: [], // 默认值，后端暂无此字段
     viewCount: 0, // 默认值，后端暂无此字段
-    tags: [], // 默认值，后端暂无此字段
+    tag: {
+      id: backendPost.ID,
+      name: backendPost.tag.name
+    }
   };
 };
 
@@ -65,9 +74,23 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);
+
+  // Load tags on mount
+  useEffect(() => {
+    const loadTags = async () => {
+      try {
+        const fetchedTags = await getAllTags();
+        setTags(fetchedTags);
+      } catch (error) {
+        console.error('Failed to load tags:', error);
+      }
+    };
+    loadTags();
+  }, []);
 
   const handleLogin = (token: string) => {
     try {
@@ -103,13 +126,13 @@ export default function App() {
     try {
       const response: PostsResponse = await getPostsForUser(user.id, pageNum);
       const newPosts = (response.data || []).map(transformBackendPostToFrontend);
-      
+
       if (pageNum === 1) {
         setPosts(newPosts);
       } else {
         setPosts(prev => [...prev, ...newPosts]);
       }
-      
+
       const totalLoaded = pageNum === 1 ? newPosts.length : posts.length + newPosts.length;
       setHasMore(totalLoaded < response.total);
     } catch (error) {
@@ -148,12 +171,23 @@ export default function App() {
   const handleCreatePost = async (data: Partial<Post>) => {
     if (!user) return;
     try {
+      // Get the first tag's ID - one-to-one relationship
+      let tagId: number | undefined;
+      if (data.tags && data.tags.length > 0) {
+        const tagName = typeof data.tags[0] === 'string' ? data.tags[0] : data.tags[0].name;
+        const foundTag = tags.find(t => t.name === tagName);
+        if (foundTag) {
+          tagId = foundTag.ID;
+        }
+      }
+
       const payload = {
         user_id: parseInt(user.id, 10),
-        type: data.images && data.images.length > 0 ? 'text_image' : 'text',
         text_content: data.content || '',
-        media_urls: data.images || [],
-        tags: data.tags || [],
+        images: data.images || [],
+        video: data.video || undefined,
+        audio: data.audio || undefined,
+        tag_id: tagId,  // Single tag ID for one-to-one relationship
         status: 'published' as const,
       };
       const newPost: BackendPost = await createPost(payload);
@@ -174,15 +208,15 @@ export default function App() {
       {!user ? (
         <Login onLogin={handleLogin} />
       ) : (
-        <div className="font-sans text-gray-900 mx-auto bg-gray-50 h-screen relative shadow-2xl overflow-hidden max-w-md w-full flex flex-col">
+        <div className="font-sans text-gray-800 mx-auto bg-white h-screen relative shadow-soft-lg overflow-hidden max-w-md w-full flex flex-col">
           <div className="flex-1 overflow-y-auto no-scrollbar" id="scrollable-container">
             <Routes>
               <Route path="/" element={
                 <div className="pt-safe">
-                  <Home 
-                    posts={posts} 
-                    onLike={handleLike} 
-                    onComment={() => {}} 
+                  <Home
+                    posts={posts}
+                    onLike={handleLike}
+                    onComment={() => { }}
                     loading={isLoadingPosts && page === 1}
                     onLoadMore={handleLoadMore}
                     hasMore={hasMore}
@@ -193,21 +227,22 @@ export default function App() {
               <Route path="/radio" element={<div className="pt-safe"><Radio /></div>} />
               <Route path="/messages" element={<Messages sessions={sessions} />} />
               <Route path="/chat/:id" element={<ChatDetail sessions={sessions} onSendMessage={handleSendMessage} currentUserId={user.id} />} />
+              <Route path="/post/:postId" element={<PostDetail posts={posts} />} />
               <Route path="/profile" element={<Profile user={user} posts={posts} onLogout={handleLogout} />} />
               <Route path="/create" element={<>
-                  <div className="pt-safe">
-                     <Home 
-                       posts={posts} 
-                       onLike={handleLike} 
-                       onComment={() => {}} 
-                       loading={false} 
-                       onLoadMore={() => {}} 
-                       hasMore={false}
-                       isLoadingMore={false}
-                      />
-                  </div>
-                  <CreatePostWrapper onPost={handleCreatePost} />
-                </>} 
+                <div className="pt-safe">
+                  <Home
+                    posts={posts}
+                    onLike={handleLike}
+                    onComment={() => { }}
+                    loading={false}
+                    onLoadMore={() => { }}
+                    hasMore={false}
+                    isLoadingMore={false}
+                  />
+                </div>
+                <CreatePostWrapper onPost={handleCreatePost} />
+              </>}
               />
             </Routes>
           </div>

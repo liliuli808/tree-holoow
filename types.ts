@@ -36,14 +36,21 @@ export interface Post {
   content: string; // Text content
   images: string[];
   videoUrl?: string;
+  video?: string | null;
   audioUrl?: string;
+  audio?: string | null;
   isLivePhoto?: boolean;
   timestamp: number;
   likes: number;
   isLiked: boolean;
   comments: Comment[];
   viewCount: number;
-  tags?: { name: string }[];
+  tags: Tag;
+}
+
+export interface Tag {
+  id: string;
+  name: string;
 }
 
 export interface ChatMessage {

@@ -37,20 +37,21 @@ export const uploadFile = async (file: File): Promise<{ src: string }[]> => {
   });
 
   if (!response.ok) {
-     const errorData = await response.json();
-     throw new Error(errorData.error || 'File upload failed');
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'File upload failed');
   }
 
   return response.json();
 };
 
-// The backend CreatePostDto expects tag names as an array of strings.
+// The backend CreatePostDto expects separate fields for different media types
 interface CreatePostPayload {
   user_id: number;
-  type: string;
   text_content: string;
-  media_urls?: string[];
-  tags?: string[];
+  images?: string[];
+  video?: string;
+  audio?: string;
+  tag_id?: number;  // Single tag ID for one-to-one relationship
   status: 'draft' | 'published';
 }
 

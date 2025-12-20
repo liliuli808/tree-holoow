@@ -48,14 +48,14 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
       alert("文件上传失败");
     } finally {
       setIsUploading(false);
-      if(fileInputRef.current) fileInputRef.current.value = "";
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
   const removeImage = (indexToRemove: number) => {
     setImageUrls(prev => prev.filter((_, index) => index !== indexToRemove));
   };
-  
+
   const removeVideo = () => setVideoUrl(null);
   const removeAudio = () => setAudioUrl(null);
 
@@ -74,7 +74,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
       alert("无法访问麦克风");
     }
   };
-  
+
   const stopRecording = () => {
     if (mediaRecorderRef.current) {
       mediaRecorderRef.current.stop();
@@ -107,31 +107,41 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
       startRecording();
     }
   };
-  
+
   const clearMedia = () => {
-      setImageUrls([]);
-      setVideoUrl(null);
-      setAudioUrl(null);
+    setImageUrls([]);
+    setVideoUrl(null);
+    setAudioUrl(null);
   }
 
   const handleMediaButtonClick = (type: 'image' | 'video') => {
-      if (mediaType !== type) {
-          clearMedia();
-      }
-      setMediaType(type);
-      fileInputRef.current?.click();
+    if (mediaType !== type) {
+      clearMedia();
+    }
+    setMediaType(type);
+
+    // 关键修复：直接同步设置 input 属性
+    const input = fileInputRef.current;
+    if (input) {
+      input.accept = type === 'image' ? 'image/*' : 'video/*';
+      input.multiple = type === 'image';
+      input.click();
+    }
   }
 
   const handleSubmit = async () => {
     if (!content.trim() && imageUrls.length === 0 && !videoUrl && !audioUrl) return;
 
+    // Combine category with any additional tags from tags input
+    const additionalTags = tags.split(',').map(t => t.trim()).filter(t => t);
+    const allTags = [category, ...additionalTags];
+
     onPost({
       content,
-      tags: tags.split(',').map(t => t.trim()).filter(t => t),
+      tags: allTags,  // Send category as part of tags array
       images: imageUrls,
       video: videoUrl,
       audio: audioUrl,
-      category: category,
     });
     // Reset state and close
     setContent('');
@@ -146,15 +156,15 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
     <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl h-[80vh] sm:h-auto flex flex-col shadow-2xl animate-slide-up pb-safe">
         <div className="flex items-center justify-between p-4 border-b border-gray-100">
-           <button onClick={onClose} className="text-gray-500">取消</button>
-           <span className="font-bold">发布树洞</span>
-           <button 
-             onClick={handleSubmit} 
-             disabled={!content.trim() && imageUrls.length === 0 && !videoUrl && !audioUrl}
-             className={`px-4 py-1.5 rounded-full text-sm font-bold text-white ${(!content.trim() && imageUrls.length === 0 && !videoUrl && !audioUrl) ? 'bg-brand-300' : 'bg-brand-500'}`}
-           >
-             {'发布'}
-           </button>
+          <button onClick={onClose} className="text-gray-500">取消</button>
+          <span className="font-bold">发布树洞</span>
+          <button
+            onClick={handleSubmit}
+            disabled={!content.trim() && imageUrls.length === 0 && !videoUrl && !audioUrl}
+            className={`px-4 py-1.5 rounded-full text-sm font-bold text-white ${(!content.trim() && imageUrls.length === 0 && !videoUrl && !audioUrl) ? 'bg-primary-300' : 'bg-primary-500'}`}
+          >
+            {'发布'}
+          </button>
         </div>
 
         <div className="p-4 flex-1 overflow-y-auto">
@@ -164,75 +174,89 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
             value={content}
             onChange={e => setContent(e.target.value)}
           />
-          
+
           <div className="flex flex-wrap gap-2 mb-6">
             {Object.values(Category).filter(c => c !== Category.ALL).map(cat => (
               <button
                 key={cat}
                 onClick={() => setCategory(cat)}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                  category === cat ? 'bg-brand-100 text-brand-600 border border-brand-200' : 'bg-gray-100 text-gray-500 border border-transparent'
-                }`}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${category === cat ? 'bg-primary-100 text-primary-600 border border-primary-200' : 'bg-gray-100 text-gray-500 border border-transparent'}
+                  }`}
               >
                 {cat}
               </button>
             ))}
           </div>
 
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleFileChange} 
-            className="hidden" 
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            className="hidden"
             accept={mediaType === 'image' ? 'image/*' : 'video/*'}
             multiple={mediaType === 'image'}
           />
 
           <div className="grid grid-cols-4 gap-4">
-             <button onClick={() => handleMediaButtonClick('image')} className="aspect-square bg-gray-50 rounded-xl flex flex-col items-center justify-center text-gray-400 gap-1 hover:bg-gray-100">
-               <ImageIcon size={24} />
-               <span className="text-[10px]">照片</span>
-             </button>
-             <button onClick={() => handleMediaButtonClick('video')} className="aspect-square bg-gray-50 rounded-xl flex flex-col items-center justify-center text-gray-400 gap-1 hover:bg-gray-100">
-               <Video size={24} />
-               <span className="text-[10px]">视频</span>
-             </button>
-             <button onClick={handleVoiceClick} className={`aspect-square bg-gray-50 rounded-xl flex flex-col items-center justify-center text-gray-400 gap-1 hover:bg-gray-100 ${isRecording ? 'text-red-500' : ''}`}>
-               <Mic size={24} />
-               <span className="text-[10px]">{isRecording ? '录音中...' : '语音'}</span>
-             </button>
+            <button onClick={() => handleMediaButtonClick('image')} className="aspect-square bg-gray-50 rounded-xl flex flex-col items-center justify-center text-gray-400 gap-1 hover:bg-gray-100">
+              <ImageIcon size={24} />
+              <span className="text-[10px]">照片</span>
+            </button>
+            <button onClick={() => handleMediaButtonClick('video')} className="aspect-square bg-gray-50 rounded-xl flex flex-col items-center justify-center text-gray-400 gap-1 hover:bg-gray-100">
+              <Video size={24} />
+              <span className="text-[10px]">视频</span>
+            </button>
+            <button onClick={handleVoiceClick} className={`aspect-square bg-gray-50 rounded-xl flex flex-col items-center justify-center text-gray-400 gap-1 hover:bg-gray-100 ${isRecording ? 'text-red-500' : ''}`}>
+              <Mic size={24} />
+              <span className="text-[10px]">{isRecording ? '录音中...' : '语音'}</span>
+            </button>
           </div>
-            
-          {isUploading && <p>上传中...</p>}
+
+          {isUploading && (
+            <div className="flex items-center justify-center gap-3 bg-primary-50 border border-primary-200 rounded-2xl p-4 mt-4 animate-fade-in">
+              <div className="relative">
+                <div className="w-8 h-8 border-3 border-primary-200 border-t-primary-500 rounded-full animate-spin"></div>
+                <div className="absolute inset-0 w-8 h-8 border-3 border-transparent border-t-primary-300 rounded-full animate-spin" style={{ animationDuration: '0.8s', animationDirection: 'reverse' }}></div>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-primary-700 font-medium text-sm">正在上传</span>
+                <div className="flex gap-1 mt-1">
+                  <span className="w-1.5 h-1.5 bg-primary-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                  <span className="w-1.5 h-1.5 bg-primary-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                  <span className="w-1.5 h-1.5 bg-primary-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="mt-4">
             {imageUrls.length > 0 && (
-                <div className="grid grid-cols-3 gap-2">
-                    {imageUrls.map((url, index) => (
-                        <div key={index} className="relative">
-                            <img src={url} alt={`upload-preview ${index}`} className="w-full h-full object-cover rounded-lg" />
-                            <button onClick={() => removeImage(index)} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1">
-                                <X size={12} />
-                            </button>
-                        </div>
-                    ))}
-                </div>
+              <div className="grid grid-cols-3 gap-2">
+                {imageUrls.map((url, index) => (
+                  <div key={index} className="relative">
+                    <img src={url} alt={`upload-preview ${index}`} className="w-full h-full object-cover rounded-lg" />
+                    <button onClick={() => removeImage(index)} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1">
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
             )}
             {videoUrl && (
-                <div className="relative">
-                    <video src={videoUrl} controls className="w-full rounded-lg"></video>
-                    <button onClick={removeVideo} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1">
-                        <X size={12} />
-                    </button>
-                </div>
+              <div className="relative">
+                <video src={videoUrl} controls className="w-full rounded-lg"></video>
+                <button onClick={removeVideo} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1">
+                  <X size={12} />
+                </button>
+              </div>
             )}
             {audioUrl && (
-                <div className="relative">
-                    <audio src={audioUrl} controls className="w-full"></audio>
-                    <button onClick={removeAudio} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1">
-                        <X size={12} />
-                    </button>
-                </div>
+              <div className="relative">
+                <audio src={audioUrl} controls className="w-full"></audio>
+                <button onClick={removeAudio} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1">
+                  <X size={12} />
+                </button>
+              </div>
             )}
           </div>
         </div>
