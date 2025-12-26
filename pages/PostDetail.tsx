@@ -90,7 +90,7 @@ export const PostDetail: React.FC<PostDetailProps> = ({ posts }) => {
     return (
         <div className="min-h-screen bg-white pb-24">
             {/* Header */}
-            <div className="sticky top-0 z-40 bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-3">
+            <div className="sticky top-0 z-40 bg-white border-b border-gray-100 px-4 py-3 pt-safe flex items-center gap-3">
                 <button onClick={() => navigate(-1)} className="text-gray-600">
                     <ArrowLeft size={24} />
                 </button>

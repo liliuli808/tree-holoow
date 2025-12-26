@@ -1,4 +1,10 @@
-export const API_BASE_URL = 'http://localhost:8080/api/v1';
+// Use local network IP for mobile devices, localhost for web development
+const isMobile = typeof window !== 'undefined' &&
+  (window.location.protocol === 'capacitor:' || window.location.protocol === 'ionic:');
+
+export const API_BASE_URL = isMobile
+  ? 'http://192.168.1.104:8080/api/v1'  // Your computer's local IP
+  : 'http://localhost:8080/api/v1';
 
 export const MEDIA_BASE_URL = 'https://51a26750.telegraph-image-8n3.pages.dev';
 

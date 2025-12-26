@@ -51,7 +51,7 @@ export const ProfileBio: React.FC = () => {
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col">
             {/* Header */}
-            <div className="sticky top-0 z-40 bg-white shadow-sm px-4 py-4 flex items-center justify-between">
+            <div className="sticky top-0 z-40 bg-white shadow-sm px-4 py-4 pt-safe flex items-center justify-between">
                 <button
                     onClick={() => navigate(-1)}
                     className="text-gray-600 hover:text-gray-900"
@@ -63,8 +63,8 @@ export const ProfileBio: React.FC = () => {
                     onClick={handleSave}
                     disabled={saving || loading}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${saving
-                            ? 'bg-gray-100 text-gray-400'
-                            : 'bg-primary-500 text-white hover:bg-primary-600'
+                        ? 'bg-gray-100 text-gray-400'
+                        : 'bg-primary-500 text-white hover:bg-primary-600'
                         }`}
                 >
                     {saving ? <Loader2 size={16} className="animate-spin" /> : '完成'}

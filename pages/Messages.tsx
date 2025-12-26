@@ -55,12 +55,14 @@ export const Messages: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
-      {/* Header */}
-      <div className="sticky top-0 z-40 bg-white shadow-sm px-6 py-5">
-        <h1 className="text-xl font-bold text-gray-900">消息</h1>
-        {totalUnread > 0 && (
-          <span className="text-sm text-primary-500">{totalUnread} 条未读</span>
-        )}
+      {/* Header with safe area */}
+      <div className="sticky top-0 z-40 bg-white shadow-sm pt-safe">
+        <div className="px-6 py-5">
+          <h1 className="text-xl font-bold text-gray-900">消息</h1>
+          {totalUnread > 0 && (
+            <span className="text-sm text-primary-500">{totalUnread} 条未读</span>
+          )}
+        </div>
       </div>
 
       {/* Conversations List */}

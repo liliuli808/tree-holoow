@@ -165,7 +165,7 @@ export const Profile: React.FC<ProfileEditProps> = ({ onProfileUpdate }) => {
     return (
         <div className="min-h-screen bg-gray-50 pb-24">
             {/* Header */}
-            <div className="sticky top-0 z-40 bg-white shadow-sm">
+            <div className="sticky top-0 z-40 bg-white shadow-sm pt-safe">
                 <div className="px-4 py-4 flex items-center">
                     <button
                         onClick={() => navigate(-1)}

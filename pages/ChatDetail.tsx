@@ -123,7 +123,11 @@ export const ChatDetail: React.FC = () => {
   };
 
   const formatTime = (timestamp: string) => {
+    if (!timestamp) return '';
     const date = new Date(timestamp);
+    // Check if date is valid
+    if (isNaN(date.getTime())) return '';
+
     const now = new Date();
     const isToday = date.toDateString() === now.toDateString();
 
@@ -135,16 +139,18 @@ export const ChatDetail: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full bg-gray-50">
-      {/* Header */}
-      <div className="sticky top-0 z-40 bg-white shadow-sm px-4 py-3 flex items-center gap-3">
-        <button
-          onClick={() => navigate(-1)}
-          className="text-gray-600 hover:text-gray-900 transition-colors"
-        >
-          <ArrowLeft size={24} />
-        </button>
-        <Avatar url={getMediaUrl(otherUser.avatar_url)} size="sm" />
-        <span className="font-medium text-gray-800">{otherUser.nickname}</span>
+      {/* Header with safe area */}
+      <div className="sticky top-0 z-40 bg-white shadow-sm pt-safe">
+        <div className="px-4 py-3 flex items-center gap-3">
+          <button
+            onClick={() => navigate(-1)}
+            className="text-gray-600 hover:text-gray-900 transition-colors"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <Avatar url={getMediaUrl(otherUser.avatar_url)} size="sm" />
+          <span className="font-medium text-gray-800">{otherUser.nickname}</span>
+        </div>
       </div>
 
       {/* Messages Area */}
@@ -169,8 +175,8 @@ export const ChatDetail: React.FC = () => {
                 <div className={`max-w-[75%]`}>
                   <div
                     className={`px-4 py-2.5 rounded-2xl ${isMine
-                        ? 'bg-primary-500 text-white rounded-br-md'
-                        : 'bg-white text-gray-800 rounded-bl-md shadow-sm'
+                      ? 'bg-primary-500 text-white rounded-br-md'
+                      : 'bg-white text-gray-800 rounded-bl-md shadow-sm'
                       }`}
                   >
                     <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
@@ -207,8 +213,8 @@ export const ChatDetail: React.FC = () => {
             onClick={handleSend}
             disabled={!inputText.trim() || sending}
             className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${inputText.trim() && !sending
-                ? 'bg-primary-500 text-white hover:bg-primary-600'
-                : 'bg-gray-200 text-gray-400'
+              ? 'bg-primary-500 text-white hover:bg-primary-600'
+              : 'bg-gray-200 text-gray-400'
               }`}
           >
             {sending ? (

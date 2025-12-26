@@ -163,7 +163,7 @@ export const MyProfile: React.FC = () => {
             </div>
 
             {/* Sticky Tabs */}
-            <div className="sticky top-0 bg-white z-40 border-b border-gray-100">
+            <div className="sticky top-0 bg-white z-40 border-b border-gray-100 pt-safe">
                 <div className="flex justify-around items-center h-12">
                     <button
                         onClick={() => setActiveTab('notes')}

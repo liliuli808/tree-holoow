@@ -124,7 +124,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     return (
         <div className="flex flex-col h-full bg-gray-50">
             {/* Header */}
-            <div className="sticky top-0 z-40 bg-white shadow-sm px-4 py-3 flex items-center gap-3">
+            <div className="sticky top-0 z-40 bg-white shadow-sm px-4 py-3 pt-safe flex items-center gap-3">
                 <button
                     onClick={() => navigate(-1)}
                     className="text-gray-600 hover:text-gray-900 transition-colors"
@@ -157,8 +157,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                 <div className={`max-w-[75%] ${isMine ? 'order-2' : 'order-1'}`}>
                                     <div
                                         className={`px-4 py-2.5 rounded-2xl ${isMine
-                                                ? 'bg-primary-500 text-white rounded-br-md'
-                                                : 'bg-white text-gray-800 rounded-bl-md shadow-sm'
+                                            ? 'bg-primary-500 text-white rounded-br-md'
+                                            : 'bg-white text-gray-800 rounded-bl-md shadow-sm'
                                             }`}
                                     >
                                         <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
@@ -195,8 +195,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         onClick={handleSend}
                         disabled={!inputText.trim() || sending}
                         className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${inputText.trim() && !sending
-                                ? 'bg-primary-500 text-white hover:bg-primary-600'
-                                : 'bg-gray-200 text-gray-400'
+                            ? 'bg-primary-500 text-white hover:bg-primary-600'
+                            : 'bg-gray-200 text-gray-400'
                             }`}
                     >
                         {sending ? (
