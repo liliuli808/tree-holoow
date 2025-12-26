@@ -1,42 +1,111 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-import { Search, Bell } from 'lucide-react';
-import { ChatSession } from '../types';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { MessageCircle, Loader2 } from 'lucide-react';
+import { Conversation, getConversations, getUnreadCount } from '../services/chatService';
 import { Avatar } from '../components/Avatar';
+import { getMediaUrl } from '../services/api';
 
-export const Messages: React.FC<{ sessions: ChatSession[] }> = ({ sessions }) => {
+export const Messages: React.FC = () => {
+  const navigate = useNavigate();
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [totalUnread, setTotalUnread] = useState(0);
+
+  useEffect(() => {
+    loadConversations();
+    loadUnreadCount();
+  }, []);
+
+  const loadConversations = async () => {
+    try {
+      setLoading(true);
+      const data = await getConversations();
+      setConversations(data);
+    } catch (err) {
+      console.error('Failed to load conversations:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadUnreadCount = async () => {
+    try {
+      const count = await getUnreadCount();
+      setTotalUnread(count);
+    } catch (err) {
+      console.error('Failed to load unread count:', err);
+    }
+  };
+
+  const formatTime = (timestamp: number) => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const dayMs = 24 * 60 * 60 * 1000;
+
+    if (diff < dayMs) {
+      return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+    } else if (diff < 7 * dayMs) {
+      const days = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+      return days[date.getDay()];
+    }
+    return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+  };
+
   return (
-    <div className="pb-24 bg-white min-h-screen pt-safe">
-      <div className="sticky top-0 bg-white z-10 px-4 py-3 border-b border-gray-100 flex justify-between items-center">
-        <h1 className="text-lg font-bold">消息</h1>
-        <div className="flex gap-4 text-gray-600">
-          <Search size={20} />
-          <Bell size={20} />
-        </div>
+    <div className="min-h-screen bg-gray-50 pb-24">
+      {/* Header */}
+      <div className="sticky top-0 z-40 bg-white shadow-sm px-6 py-5">
+        <h1 className="text-xl font-bold text-gray-900">消息</h1>
+        {totalUnread > 0 && (
+          <span className="text-sm text-primary-500">{totalUnread} 条未读</span>
+        )}
       </div>
-      
-      <div className="divide-y divide-gray-50">
-        {sessions.map(session => (
-          <Link to={`/chat/${session.id}`} key={session.id} className="flex items-center gap-3 p-4 hover:bg-gray-50 transition-colors">
-            <div className="relative">
-              <Avatar url={session.partnerAvatar} size="lg" />
-              {session.unreadCount > 0 && (
-                <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-white text-[10px] flex items-center justify-center border-2 border-white">
-                  {session.unreadCount}
-                </div>
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex justify-between items-baseline mb-1">
-                <h3 className="font-bold text-gray-800 truncate">{session.partnerName}</h3>
-                <span className="text-xs text-gray-400">
-                  {new Date(session.lastMessageTime).getHours()}:{new Date(session.lastMessageTime).getMinutes().toString().padStart(2, '0')}
-                </span>
+
+      {/* Conversations List */}
+      <div className="bg-white mt-2">
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="animate-spin text-primary-500" size={28} />
+          </div>
+        ) : conversations.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+            <MessageCircle size={48} className="mb-3 opacity-50" />
+            <p className="text-base">暂无消息</p>
+            <p className="text-sm mt-1">在帖子中点击私信开始聊天</p>
+          </div>
+        ) : (
+          conversations.map((conv) => (
+            <button
+              key={conv.id}
+              onClick={() => navigate(`/chat/${conv.other_user.id}`)}
+              className="w-full flex items-center gap-4 px-6 py-4 border-b border-gray-50 hover:bg-gray-50 transition-colors text-left"
+            >
+              <div className="relative">
+                <Avatar url={getMediaUrl(conv.other_user.avatar_url)} size="lg" />
+                {conv.unread_count > 0 && (
+                  <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-medium">
+                    {conv.unread_count > 9 ? '9+' : conv.unread_count}
+                  </div>
+                )}
               </div>
-              <p className="text-gray-500 text-sm truncate">{session.lastMessage}</p>
-            </div>
-          </Link>
-        ))}
+              <div className="flex-1 min-w-0">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="font-medium text-gray-900 truncate">
+                    {conv.other_user.nickname || '用户'}
+                  </span>
+                  <span className="text-xs text-gray-400 shrink-0 ml-2">
+                    {formatTime(conv.last_message_at)}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-500 truncate">
+                  {conv.last_message || '暂无消息'}
+                </p>
+              </div>
+            </button>
+          ))
+        )}
       </div>
     </div>
   );

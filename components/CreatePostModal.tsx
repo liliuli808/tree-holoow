@@ -21,7 +21,6 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
   const [category, setCategory] = useState<Category>(Category.CONFESSION);
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
 
   if (!isOpen) return null;
 
@@ -41,7 +40,11 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
       if (mediaType === 'image') {
         setImageUrls(prev => [...prev, fullUrl]);
       } else if (mediaType === 'video') {
-        setVideoUrl(fullUrl);
+        if (file.type.startsWith('image/')) {
+          setImageUrls([fullUrl]); // Only one cover allowed
+        } else {
+          setVideoUrl(fullUrl);
+        }
       }
     } catch (error) {
       console.error("File upload failed:", error);
@@ -64,24 +67,28 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
-      mediaRecorder.ondataavailable = (event) => {
-        setAudioChunks(prev => [...prev, event.data]);
-      };
-      mediaRecorder.start();
-      setIsRecording(true);
-    } catch (error) {
-      console.error("Error accessing microphone:", error);
-      alert("无法访问麦克风");
-    }
-  };
 
-  const stopRecording = () => {
-    if (mediaRecorderRef.current) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      mediaRecorderRef.current.onstop = async () => {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+      // Use a local array to collect chunks to avoid closure issues
+      const chunks: Blob[] = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunks.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        // Stop all tracks to release microphone
+        stream.getTracks().forEach(track => track.stop());
+
+        if (chunks.length === 0) {
+          alert("录音失败，请重试");
+          return;
+        }
+
+        const audioBlob = new Blob(chunks, { type: 'audio/webm' });
         const audioFile = new File([audioBlob], "recording.webm", { type: "audio/webm" });
+
         setIsUploading(true);
         try {
           const response = await uploadFile(audioFile);
@@ -92,9 +99,21 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
           alert("语音上传失败");
         } finally {
           setIsUploading(false);
-          setAudioChunks([]);
         }
       };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (error) {
+      console.error("Error accessing microphone:", error);
+      alert("无法访问麦克风");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
     }
   };
 
@@ -114,16 +133,18 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
     setAudioUrl(null);
   }
 
-  const handleMediaButtonClick = (type: 'image' | 'video') => {
-    if (mediaType !== type) {
+  const handleMediaButtonClick = (type: 'image' | 'video' | 'cover') => {
+    if (type !== 'cover' && mediaType !== type) {
       clearMedia();
     }
-    setMediaType(type);
 
-    // 关键修复：直接同步设置 input 属性
+    if (type !== 'cover') {
+      setMediaType(type as 'image' | 'video');
+    }
+
     const input = fileInputRef.current;
     if (input) {
-      input.accept = type === 'image' ? 'image/*' : 'video/*';
+      input.accept = (type === 'image' || type === 'cover') ? 'image/*' : 'video/*';
       input.multiple = type === 'image';
       input.click();
     }
@@ -132,16 +153,22 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
   const handleSubmit = async () => {
     if (!content.trim() && imageUrls.length === 0 && !videoUrl && !audioUrl) return;
 
-    // Combine category with any additional tags from tags input
-    const additionalTags = tags.split(',').map(t => t.trim()).filter(t => t);
-    const allTags = [category, ...additionalTags];
+    // Use the selected category as the tag
+
+    // 视频模式下，imageUrls[0] 是封面图
+    const coverUrl = mediaType === 'video' && imageUrls.length > 0 ? imageUrls[0] : undefined;
+    const imagesToSend = mediaType === 'image' ? imageUrls : [];
 
     onPost({
       content,
-      tags: allTags,  // Send category as part of tags array
-      images: imageUrls,
+      tag: {  // Send as single tag object (one-to-one relationship)
+        id: Date.now().toString(),
+        name: category
+      },
+      images: imagesToSend,
       video: videoUrl,
       audio: audioUrl,
+      cover: coverUrl,
     });
     // Reset state and close
     setContent('');
@@ -243,11 +270,36 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
               </div>
             )}
             {videoUrl && (
-              <div className="relative">
-                <video src={videoUrl} controls className="w-full rounded-lg"></video>
-                <button onClick={removeVideo} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1">
-                  <X size={12} />
-                </button>
+              <div className="space-y-3">
+                <div className="relative">
+                  <video src={videoUrl} controls className="w-full rounded-lg bg-black aspect-video"></video>
+                  <button onClick={removeVideo} className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1.5 shadow-lg">
+                    <X size={14} />
+                  </button>
+                </div>
+
+                {/* Video Cover logic */}
+                <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                  <div className="flex-1">
+                    <h4 className="text-sm font-bold text-gray-700">视频封面</h4>
+                    <p className="text-[10px] text-gray-400 mt-0.5">上传一张图片作为帖子列表中的封面图</p>
+                  </div>
+                  {imageUrls.length > 0 ? (
+                    <div className="relative w-24 h-16 shrink-0">
+                      <img src={imageUrls[0]} alt="Cover" className="w-full h-full object-cover rounded-lg border border-gray-200" />
+                      <button onClick={() => setImageUrls([])} className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full p-0.5 shadow-md">
+                        <X size={10} />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => handleMediaButtonClick('cover')}
+                      className="px-4 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-100 transition-colors shrink-0"
+                    >
+                      选择封面
+                    </button>
+                  )}
+                </div>
               </div>
             )}
             {audioUrl && (

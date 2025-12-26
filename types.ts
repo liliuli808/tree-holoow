@@ -39,13 +39,15 @@ export interface Post {
   video?: string | null;
   audioUrl?: string;
   audio?: string | null;
+  cover?: string;
   isLivePhoto?: boolean;
   timestamp: number;
   likes: number;
   isLiked: boolean;
   comments: Comment[];
   viewCount: number;
-  tags: Tag;
+  tag: Tag;
+  type: string;
 }
 
 export interface Tag {

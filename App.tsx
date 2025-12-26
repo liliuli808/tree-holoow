@@ -1,17 +1,21 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { HashRouter, Routes, Route, useNavigate } from 'react-router-dom';
-import { User, Post, ChatSession } from './types';
+import { User, Post, ChatSession, Category } from './types';
 import { Home } from './pages/Home';
 import { Radio } from './pages/Radio';
 import { Messages } from './pages/Messages';
 import { ChatDetail } from './pages/ChatDetail';
 import { Login } from './pages/Login';
 import { Profile } from './pages/Profile';
+import { MyProfile } from './pages/MyProfile';
+import { ProfileBio } from './pages/ProfileBio';
 import { PostDetail } from './pages/PostDetail';
 import { Navigation } from './components/Navigation';
 import { CreatePostModal } from './components/CreatePostModal';
-import { createPost, getPostsForUser } from './services/postService';
+import { createPost, getAllPosts } from './services/postService';
 import { getAllTags, Tag } from './services/tagService';
+import { getMediaUrl } from './services/api';
+import { websocketService } from './services/websocketService';
 import { jwtDecode } from 'jwt-decode';
 
 // 后端帖子数据接口
@@ -31,11 +35,16 @@ interface BackendPost {
     UpdatedAt: string;
     DeletedAt: string | null;
     email: string;
+    nickname?: string;
+    avatar_url?: string;
   };
   type: string;
   text_content: string;
   media_urls: string[] | null;
+  cover_url?: string;
   status: string;
+  likes_count: number;
+  is_liked: boolean;
 }
 
 // 后端帖子响应接口
@@ -45,28 +54,56 @@ interface PostsResponse {
   total: number;
 }
 
+// 将后端 tag name 映射到前端 Category 枚举
+const mapTagToCategory = (tagName: string): Category => {
+  const tagMap: Record<string, Category> = {
+    '恋爱': Category.LOVE,
+    '游戏': Category.GAME,
+    '音乐': Category.MUSIC,
+    '电影': Category.MOVIE,
+    '交友': Category.FRIENDS,
+    '此刻': Category.MOMENT,
+    '表白': Category.CONFESSION,
+    '吐槽': Category.TRASH,
+  };
+  return tagMap[tagName] || Category.ALL;
+};
+
 // 转换函数：后端数据格式 -> 前端数据格式
 const transformBackendPostToFrontend = (backendPost: BackendPost): Post => {
+  const isVideo = backendPost.type === 'video';
+  const isAudio = backendPost.type === 'audio';
+  const mediaUrls = backendPost.media_urls || [];
+
+  // 根据类型正确分配媒体 URL
+  const images = (!isVideo && !isAudio) ? mediaUrls : [];
+  const videoUrl = isVideo && mediaUrls.length > 0 ? mediaUrls[0] : undefined;
+  const audioUrl = isAudio && mediaUrls.length > 0 ? mediaUrls[0] : undefined;
+
+  const tagName = backendPost.tag ? backendPost.tag.name : '未分类';
+
   return {
     id: backendPost.ID.toString(),
     userId: backendPost.user_id.toString(),
-    userNickname: backendPost.user.email.split('@')[0],
-    userAvatar: `https://picsum.photos/seed/${backendPost.user.ID}/100`,
-    category: 'text', // 默认值，后端暂无此字段
+    userNickname: backendPost.user.nickname || backendPost.user.email.split('@')[0],
+    userAvatar: backendPost.user.avatar_url ? getMediaUrl(backendPost.user.avatar_url) : `https://picsum.photos/seed/${backendPost.user.ID}/100`,
+    category: mapTagToCategory(tagName), // 使用映射函数
     content: backendPost.text_content || '',
-    images: backendPost.media_urls || [],
-    videoUrl: undefined,
-    audioUrl: undefined,
+    images,
+    videoUrl,
+    audioUrl,
+    cover: backendPost.cover_url,
     isLivePhoto: false,
     timestamp: new Date(backendPost.CreatedAt).getTime(),
-    likes: 0, // 默认值，后端暂无此字段
-    isLiked: false, // 默认值，后端暂无此字段
-    comments: [], // 默认值，后端暂无此字段
-    viewCount: 0, // 默认值，后端暂无此字段
+    likes: backendPost.likes_count || 0,
+    isLiked: backendPost.is_liked || false,
+    comments: [], // 默认值,后端暂无此字段
+    viewCount: 0, // 默认值,后端暂无此字段
     tag: {
-      id: backendPost.ID,
-      name: backendPost.tag.name
-    }
+      id: backendPost.tag ? backendPost.tag.ID.toString() : '0',
+      name: tagName
+    },
+    type: backendPost.type || 'text'
   };
 };
 
@@ -78,6 +115,7 @@ export default function App() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);
+  const [activeTagId, setActiveTagId] = useState<number | undefined>(undefined);
 
   // Load tags on mount
   useEffect(() => {
@@ -100,10 +138,13 @@ export default function App() {
         setUser({
           id: decodedToken.user_id.toString(),
           nickname: decodedToken.email.split('@')[0],
-          avatarUrl: `https://picsum.photos/seed/${decodedToken.user_id}/100`, // 修复：移除空格
+          avatarUrl: `https://picsum.photos/seed/${decodedToken.user_id}/100`,
           isAnonymous: false,
         });
         localStorage.setItem('token', token);
+
+        // Connect WebSocket for real-time chat
+        websocketService.connect(token);
       } else {
         localStorage.removeItem('token');
       }
@@ -120,11 +161,10 @@ export default function App() {
     }
   }, []);
 
-  const fetchPosts = useCallback(async (pageNum: number) => {
-    if (!user) return;
+  const fetchPosts = useCallback(async (pageNum: number, tagId?: number) => {
     setIsLoadingPosts(true);
     try {
-      const response: PostsResponse = await getPostsForUser(user.id, pageNum);
+      const response: PostsResponse = await getAllPosts(pageNum, tagId);
       const newPosts = (response.data || []).map(transformBackendPostToFrontend);
 
       if (pageNum === 1) {
@@ -141,40 +181,66 @@ export default function App() {
     } finally {
       setIsLoadingPosts(false);
     }
-  }, [user, posts.length]);
+  }, [posts.length]);
 
+  // 当activeTagId变化时重新获取帖子
   useEffect(() => {
-    if (user) {
-      fetchPosts(1);
-      setPage(1); // 重置页码
-    }
-  }, [user, fetchPosts]);
+    fetchPosts(1, activeTagId);
+    setPage(1);
+  }, [activeTagId, fetchPosts]);
 
   const handleLoadMore = () => {
     if (!isLoadingPosts && hasMore) {
       const nextPage = page + 1;
       setPage(nextPage);
-      fetchPosts(nextPage);
+      fetchPosts(nextPage, activeTagId);
     }
   };
 
   const handleLogout = () => {
+    websocketService.disconnect();
     setUser(null);
     localStorage.removeItem('token');
   };
 
-  const handleLike = (id: string) => {
-    console.log("Liking post", id);
-    // TODO: API call to like a post
+  const handleProfileUpdate = (nickname: string, avatarUrl: string, backgroundUrl?: string) => {
+    if (user) {
+      setUser({
+        ...user,
+        nickname,
+        avatarUrl,
+        ...(backgroundUrl && { backgroundUrl })
+      });
+    }
+  };
+
+  const handleLike = async (id: string) => {
+    try {
+      const { toggleLike } = await import('./services/likeCommentService');
+      const result = await toggleLike(id);
+
+      setPosts(prevPosts => prevPosts.map(post => {
+        if (post.id === id) {
+          return {
+            ...post,
+            isLiked: result.liked,
+            likes: result.count
+          };
+        }
+        return post;
+      }));
+    } catch (error) {
+      console.error("Failed to toggle like:", error);
+    }
   };
 
   const handleCreatePost = async (data: Partial<Post>) => {
     if (!user) return;
     try {
-      // Get the first tag's ID - one-to-one relationship
+      // Get the tag ID - one-to-one relationship
       let tagId: number | undefined;
-      if (data.tags && data.tags.length > 0) {
-        const tagName = typeof data.tags[0] === 'string' ? data.tags[0] : data.tags[0].name;
+      if (data.tag) {
+        const tagName = data.tag.name;
         const foundTag = tags.find(t => t.name === tagName);
         if (foundTag) {
           tagId = foundTag.ID;
@@ -187,6 +253,7 @@ export default function App() {
         images: data.images || [],
         video: data.video || undefined,
         audio: data.audio || undefined,
+        cover: data.cover || undefined,
         tag_id: tagId,  // Single tag ID for one-to-one relationship
         status: 'published' as const,
       };
@@ -221,14 +288,18 @@ export default function App() {
                     onLoadMore={handleLoadMore}
                     hasMore={hasMore}
                     isLoadingMore={isLoadingPosts}
+                    onTagChange={(tagId) => setActiveTagId(tagId)}
+                    tags={tags}
                   />
                 </div>
               } />
               <Route path="/radio" element={<div className="pt-safe"><Radio /></div>} />
-              <Route path="/messages" element={<Messages sessions={sessions} />} />
-              <Route path="/chat/:id" element={<ChatDetail sessions={sessions} onSendMessage={handleSendMessage} currentUserId={user.id} />} />
+              <Route path="/messages" element={<Messages />} />
+              <Route path="/chat/:id" element={<ChatDetail />} />
               <Route path="/post/:postId" element={<PostDetail posts={posts} />} />
-              <Route path="/profile" element={<Profile user={user} posts={posts} onLogout={handleLogout} />} />
+              <Route path="/profile" element={<MyProfile />} />
+              <Route path="/profile/edit" element={<Profile onProfileUpdate={handleProfileUpdate} />} />
+              <Route path="/profile/edit/bio" element={<ProfileBio />} />
               <Route path="/create" element={<>
                 <div className="pt-safe">
                   <Home

@@ -1,69 +1,339 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-import { Settings, LogOut } from 'lucide-react';
-import { User, Post } from '../types';
-import { Avatar } from '../components/Avatar';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { User, Loader2, ChevronRight, ArrowLeft } from 'lucide-react';
+import { getProfile, updateProfile, UserProfile } from '../services/userService';
+import { uploadFile } from '../services/postService';
+import { API_BASE_URL, MEDIA_BASE_URL } from '../services/api';
+import { RegionPicker } from '../components/RegionPicker';
 
-export const Profile: React.FC<{ user: User, posts: Post[], onLogout: () => void }> = ({ user, posts, onLogout }) => {
-  const myPosts = posts.filter(p => p.userId === user.id);
+interface ProfileEditProps {
+    onProfileUpdate?: (nickname: string, avatarUrl: string, backgroundUrl: string) => void;
+}
 
-  return (
-    <div className="pb-24 bg-gray-50 min-h-screen pt-safe">
-      <div className="bg-white pb-6 pt-6 px-6 rounded-b-3xl shadow-sm mb-4 relative overflow-hidden">
-        {/* Abstract Background */}
-        <div className="absolute top-0 right-0 w-48 h-48 bg-brand-100 rounded-full blur-3xl opacity-50 -translate-y-1/2 translate-x-1/4"></div>
-        
-        <div className="relative z-10 flex items-center justify-between mb-6">
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <Avatar url={user.avatarUrl} size="lg" />
-              <div className="absolute bottom-0 right-0 bg-green-500 w-3 h-3 rounded-full border-2 border-white"></div>
+export const Profile: React.FC<ProfileEditProps> = ({ onProfileUpdate }) => {
+    const navigate = useNavigate();
+    const [profile, setProfile] = useState<UserProfile | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [uploading, setUploading] = useState<'avatar' | 'background' | null>(null);
+    const [nickname, setNickname] = useState('');
+    const [avatarUrl, setAvatarUrl] = useState('');
+    const [backgroundUrl, setBackgroundUrl] = useState('');
+    const [bio, setBio] = useState('');
+    const [location, setLocation] = useState('');
+    const [birthday, setBirthday] = useState('');
+
+    const [error, setError] = useState<string | null>(null);
+    const [showNicknameEdit, setShowNicknameEdit] = useState(false);
+    const [showBioEdit, setShowBioEdit] = useState(false);
+    const [showLocationEdit, setShowLocationEdit] = useState(false);
+    const [showBirthdayEdit, setShowBirthdayEdit] = useState(false);
+
+    useEffect(() => {
+        loadProfile();
+    }, []);
+
+    const getImageUrl = (url: string) => {
+        if (!url) return '';
+        if (url.startsWith('http')) return url;
+        // Construct full URL by stripping /api/v1 from API_BASE_URL and appending path
+        // API_BASE_URL is like http://localhost:8080/api/v1
+        const baseUrl = API_BASE_URL.replace(/\/api\/v1\/?$/, '');
+        return `${baseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+    };
+
+    const loadProfile = async () => {
+        try {
+            setLoading(true);
+            const data = await getProfile();
+            setProfile(data);
+            setNickname(data.nickname || '');
+            setAvatarUrl(data.avatar_url || '');
+            setBackgroundUrl(data.background_url || '');
+            setBio(data.bio || '');
+            setLocation(data.location || '');
+            setBirthday(data.birthday || '');
+        } catch (err) {
+            console.error('Failed to load profile:', err);
+            setError('加载用户信息失败');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'avatar' | 'background') => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (!file.type.startsWith('image/')) {
+            setError('请上传图片文件');
+            return;
+        }
+
+        if (file.size > 5 * 1024 * 1024) {
+            setError('图片大小不能超过 5MB');
+            return;
+        }
+
+        try {
+            setUploading(type);
+            setError(null);
+            const result = await uploadFile(file);
+            if (result && result.length > 0) {
+                const path = result[0].src;
+                const url = `${MEDIA_BASE_URL}${path}`
+                // Note: url returned might be relative or absolute depending on service
+                if (type === 'avatar') {
+                    setAvatarUrl(url); // Store raw URL
+                    await saveProfileData({ avatar_url: url });
+                } else {
+                    setBackgroundUrl(url); // Store raw URL
+                    await saveProfileData({ background_url: url });
+                }
+            }
+        } catch (err) {
+            console.error(`Failed to upload ${type}:`, err);
+            setError(`上传${type === 'avatar' ? '头像' : '背景'}失败`);
+        } finally {
+            setUploading(null);
+        }
+    };
+
+    const saveProfileData = async (updates: Partial<{ nickname: string, avatar_url: string, background_url: string, bio: string, location: string, birthday: string }>) => {
+        try {
+            setSaving(true);
+            const updated = await updateProfile({
+                nickname: updates.nickname !== undefined ? updates.nickname : nickname,
+                avatar_url: updates.avatar_url !== undefined ? updates.avatar_url : avatarUrl,
+                background_url: updates.background_url !== undefined ? updates.background_url : backgroundUrl,
+                bio: updates.bio !== undefined ? updates.bio : bio,
+                location: updates.location !== undefined ? updates.location : location,
+                birthday: updates.birthday !== undefined ? updates.birthday : birthday,
+            });
+            setProfile(updated);
+            // Sync state with returned data
+            setNickname(updated.nickname || '');
+            setAvatarUrl(updated.avatar_url || '');
+            setBackgroundUrl(updated.background_url || '');
+            setBio(updated.bio || '');
+            setLocation(updated.location || '');
+            setBirthday(updated.birthday || '');
+
+            onProfileUpdate?.(updated.nickname, updated.avatar_url, updated.background_url);
+        } catch (err) {
+            console.error('Failed to update profile:', err);
+            setError('保存失败，请重试');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleNicknameSave = async () => {
+        if (!nickname.trim()) {
+            setError('昵称不能为空');
+            return;
+        }
+        await saveProfileData({ nickname: nickname.trim() });
+        setShowNicknameEdit(false);
+    };
+
+    const handleBioSave = async () => {
+        await saveProfileData({ bio: bio.trim() });
+        setShowBioEdit(false);
+    };
+
+    const handleLocationSave = async (newLocation?: string) => {
+        const val = newLocation !== undefined ? newLocation : location;
+        await saveProfileData({ location: val.trim() });
+        setShowLocationEdit(false);
+    };
+
+    const handleBirthdaySave = async (newBirthday?: string) => {
+        const val = newBirthday !== undefined ? newBirthday : birthday;
+        await saveProfileData({ birthday: val });
+        setShowBirthdayEdit(false);
+    };
+
+    if (loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                <Loader2 className="animate-spin text-primary-500" size={32} />
             </div>
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">{user.nickname}</h2>
-              <p className="text-sm text-gray-500 font-mono">ID: {user.id}</p>
+        );
+    }
+
+    return (
+        <div className="min-h-screen bg-gray-50 pb-24">
+            {/* Header */}
+            <div className="sticky top-0 z-40 bg-white shadow-sm">
+                <div className="px-4 py-4 flex items-center">
+                    <button
+                        onClick={() => navigate(-1)}
+                        className="text-gray-600 hover:text-gray-900 transition-colors"
+                    >
+                        <ArrowLeft size={24} />
+                    </button>
+                    <h1 className="flex-1 text-center text-lg font-medium text-gray-800">设置真身</h1>
+                    <div className="w-6" />
+                </div>
             </div>
-          </div>
-          <Link to="/settings" className="p-2 bg-gray-50 rounded-full text-gray-600">
-            <Settings size={20} />
-          </Link>
+
+            {/* Settings List */}
+            <div className="mt-4 bg-white">
+                {/* Avatar */}
+                <label className="flex items-center justify-between px-6 py-4 border-b border-gray-100 active:bg-gray-50 transition-colors cursor-pointer">
+                    <span className="text-gray-800">头像</span>
+                    <div className="flex items-center gap-3">
+                        {uploading === 'avatar' ? (
+                            <Loader2 className="animate-spin text-primary-500" size={20} />
+                        ) : (
+                            <div className="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-br from-yellow-400 to-orange-400 ring-2 ring-yellow-300">
+                                {avatarUrl ? (
+                                    <img src={getImageUrl(avatarUrl)} alt="Avatar" className="w-full h-full object-cover" />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center">
+                                        <User size={24} className="text-white" />
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                    <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleImageUpload(e, 'avatar')}
+                        className="hidden"
+                        disabled={uploading !== null}
+                    />
+                </label>
+
+                {/* Background */}
+                <label className="flex items-center justify-between px-6 py-4 border-b border-gray-100 active:bg-gray-50 transition-colors cursor-pointer">
+                    <span className="text-gray-800">背景</span>
+                    <div className="flex items-center gap-2">
+                        {uploading === 'background' ? (
+                            <Loader2 className="animate-spin text-primary-500" size={20} />
+                        ) : (
+                            backgroundUrl && (
+                                <div className="w-12 h-8 rounded overflow-hidden">
+                                    <img src={getImageUrl(backgroundUrl)} alt="Background" className="w-full h-full object-cover" />
+                                </div>
+                            )
+                        )}
+                        <ChevronRight size={20} className="text-gray-400" />
+                    </div>
+                    <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleImageUpload(e, 'background')}
+                        className="hidden"
+                        disabled={uploading !== null}
+                    />
+                </label>
+
+                {/* Nickname */}
+                {showNicknameEdit ? (
+                    <div className="px-6 py-4 border-b border-gray-100">
+                        <div className="flex items-center gap-3">
+                            <span className="text-gray-800 w-16">名字</span>
+                            <input
+                                type="text"
+                                value={nickname}
+                                onChange={(e) => setNickname(e.target.value)}
+                                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                maxLength={50}
+                                autoFocus
+                            />
+                            <button
+                                onClick={handleNicknameSave}
+                                disabled={saving}
+                                className="px-4 py-2 bg-primary-500 text-white rounded-lg text-sm font-medium hover:bg-primary-600 disabled:bg-gray-300"
+                            >
+                                {saving ? '保存中...' : '保存'}
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <button
+                        onClick={() => setShowNicknameEdit(true)}
+                        className="w-full flex items-center justify-between px-6 py-4 border-b border-gray-100 active:bg-gray-50 transition-colors"
+                    >
+                        <span className="text-gray-800">名字</span>
+                        <div className="flex items-center gap-2">
+                            <span className="text-gray-600">{nickname || '未设置'}</span>
+                            <ChevronRight size={20} className="text-gray-400" />
+                        </div>
+                    </button>
+                )}
+
+                {/* Bio - Navigate to new page */}
+                <button
+                    onClick={() => navigate(`/profile/edit/bio?initial=${encodeURIComponent(bio)}`)}
+                    className="w-full flex items-center justify-between px-6 py-4 border-b border-gray-100 active:bg-gray-50 transition-colors"
+                >
+                    <span className="text-gray-800">简介</span>
+                    <div className="flex items-center gap-2">
+                        <span className="text-gray-600 truncate max-w-[200px]">{bio || '未设置'}</span>
+                        <ChevronRight size={20} className="text-gray-400" />
+                    </div>
+                </button>
+
+                {/* Location - Use RegionPicker */}
+                <button
+                    onClick={() => setShowLocationEdit(true)}
+                    className="w-full flex items-center justify-between px-6 py-4 border-b border-gray-100 active:bg-gray-50 transition-colors"
+                >
+                    <span className="text-gray-800">地区</span>
+                    <div className="flex items-center gap-2">
+                        <span className="text-gray-600">{location || '未设置'}</span>
+                        <ChevronRight size={20} className="text-gray-400" />
+                    </div>
+                </button>
+
+                {/* Birthday - Customize Date Picker */}
+                <label className="flex items-center justify-between px-6 py-4 border-b border-gray-100 active:bg-gray-50 transition-colors cursor-pointer relative">
+                    <span className="text-gray-800">生日</span>
+                    <div className="flex items-center gap-2">
+                        <span className={`text-base ${birthday ? 'text-gray-600' : 'text-gray-400'}`}>
+                            {birthday || '未设置'}
+                        </span>
+                        <ChevronRight size={20} className="text-gray-400" />
+                    </div>
+                    {/* Invisible absolute input cover to trigger native picker */}
+                    <input
+                        type="date"
+                        value={birthday}
+                        onChange={(e) => {
+                            setBirthday(e.target.value);
+                            handleBirthdaySave(e.target.value);
+                        }}
+                        className="absolute inset-0 opacity-0 z-10 w-full h-full cursor-pointer"
+                    />
+                </label>
+            </div>
+
+            {/* Region Picker Modal */}
+            <RegionPicker
+                isOpen={showLocationEdit}
+                onClose={() => setShowLocationEdit(false)}
+                onSelect={(loc) => {
+                    setLocation(loc);
+                    handleLocationSave(loc);
+                }}
+                currentLocation={location}
+            />
+
+            {/* Error Message */}
+            {error && (
+                <div className="mx-4 mt-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
+                    {error}
+                </div>
+            )}
+
+            {/* Info Text */}
+            <div className="px-6 py-6 text-center text-xs text-gray-400">
+                点击对应项目进行修改
+            </div>
         </div>
-
-        <div className="flex justify-around text-center">
-          <div>
-            <div className="text-xl font-bold text-gray-900">{myPosts.length}</div>
-            <div className="text-xs text-gray-500">树洞</div>
-          </div>
-          <div>
-            <div className="text-xl font-bold text-gray-900">128</div>
-            <div className="text-xs text-gray-500">关注</div>
-          </div>
-          <div>
-            <div className="text-xl font-bold text-gray-900">456</div>
-            <div className="text-xs text-gray-500">粉丝</div>
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-md mx-auto px-4 space-y-3">
-        <h3 className="font-bold text-gray-800 ml-1">我的发布</h3>
-        {myPosts.length > 0 ? (
-          myPosts.map(p => (
-            <div key={p.id} className="bg-white p-4 rounded-xl shadow-sm flex justify-between items-center">
-               <span className="truncate flex-1 pr-4 text-gray-700">{p.content}</span>
-               <span className="text-xs text-gray-400 whitespace-nowrap">{new Date(p.timestamp).toLocaleDateString()}</span>
-            </div>
-          ))
-        ) : (
-          <div className="text-center py-10 text-gray-400">暂无内容</div>
-        )}
-      </div>
-      
-      <div className="mt-8 px-6">
-        <button onClick={onLogout} className="w-full flex items-center justify-center gap-2 text-red-500 font-medium py-3 bg-white rounded-xl shadow-sm">
-           <LogOut size={18} /> 退出登录
-        </button>
-      </div>
-    </div>
-  );
+    );
 };

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Heart, MessageCircle, Send } from 'lucide-react';
 import { Post } from '../types';
 import { toggleLike, getLikeStatus, getComments, createComment, Comment } from '../services/likeCommentService';
+import { ChatButton } from '../components/ChatButton';
 
 interface PostDetailProps {
     posts: Post[];
@@ -106,6 +107,7 @@ export const PostDetail: React.FC<PostDetailProps> = ({ posts }) => {
                             {new Date(post.timestamp).toLocaleString('zh-CN')}
                         </div>
                     </div>
+                    <ChatButton userId={parseInt(post.userId)} userName={post.userNickname} variant="full" />
                 </div>
 
                 {/* Post text */}

@@ -5,17 +5,53 @@ const PAGE_SIZE = 10;
 
 export const API_BASE_URL = 'https://51a26750.telegraph-image-8n3.pages.dev';
 
-interface PaginatedPostsResponse {
-  data: Post[];
+// This interface should match the backend's JSON structure for paginated results
+export interface PaginatedPostsResponse {
+  data: any[]; // Use any[] here because App.tsx handles the specific BackendPost mapping
   total: number;
   page: number;
 }
 
 /**
- * Fetches a paginated list of posts for a specific user.
+ * Fetches a paginated list of posts from all users.
+ * @param page Page number
+ * @param tagId Optional tag ID to filter posts by tag
  */
-export const getPostsForUser = async (userId: string, page: number): Promise<PaginatedPostsResponse> => {
-  return api(`/users/${userId}/posts?page=${page}&pageSize=${PAGE_SIZE}`, {
+export const getAllPosts = async (
+  page: number,
+  tagId?: number
+): Promise<PaginatedPostsResponse> => {
+  let url = `/posts?page=${page}&pageSize=${PAGE_SIZE}`;
+
+  // 如果提供了 tagId，添加到查询参数
+  if (tagId !== undefined) {
+    url += `&tag_id=${tagId}`;
+  }
+
+  return api(url, {
+    method: 'GET',
+  });
+};
+
+/**
+ * Fetches a paginated list of posts for a specific user.
+ * @param userId The user ID
+ * @param page Page number
+ * @param tagId Optional tag ID to filter posts by tag
+ */
+export const getPostsForUser = async (
+  userId: string,
+  page: number,
+  tagId?: number
+): Promise<PaginatedPostsResponse> => {
+  let url = `/users/${userId}/posts?page=${page}&pageSize=${PAGE_SIZE}`;
+
+  // 如果提供了 tagId，添加到查询参数
+  if (tagId !== undefined) {
+    url += `&tag_id=${tagId}`;
+  }
+
+  return api(url, {
     method: 'GET',
   });
 };
@@ -51,6 +87,7 @@ interface CreatePostPayload {
   images?: string[];
   video?: string;
   audio?: string;
+  cover?: string;
   tag_id?: number;  // Single tag ID for one-to-one relationship
   status: 'draft' | 'published';
 }
@@ -58,7 +95,7 @@ interface CreatePostPayload {
 /**
  * Creates a new post.
  */
-export const createPost = async (postData: CreatePostPayload): Promise<Post> => {
+export const createPost = async (postData: CreatePostPayload): Promise<any> => {
   return api('/posts', {
     method: 'POST',
     body: JSON.stringify(postData),
