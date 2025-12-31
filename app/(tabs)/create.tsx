@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Video, ResizeMode } from 'expo-av';
 import * as ImagePicker from 'expo-image-picker';
 import { createPost, uploadFile } from '../../services/postService';
 import { getAllTags, Tag } from '../../services/tagService';
@@ -25,7 +26,7 @@ export default function CreateScreen() {
     const router = useRouter();
     const { user } = useAuth();
     const [content, setContent] = useState('');
-    const [images, setImages] = useState<string[]>([]);
+    const [mediaItems, setMediaItems] = useState<{ uri: string; type: 'image' | 'video' }[]>([]);
     const [selectedTag, setSelectedTag] = useState<Tag | null>(null);
     const [tags, setTags] = useState<Tag[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -44,34 +45,37 @@ export default function CreateScreen() {
         loadTags();
     }, []);
 
-    const pickImages = async () => {
+    const pickMedia = async () => {
         const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
         if (!permissionResult.granted) {
-            Alert.alert('权限提示', '需要访问相册权限才能上传图片');
+            Alert.alert('权限提示', '需要访问相册权限才能上传内容');
             return;
         }
 
         const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            mediaTypes: ImagePicker.MediaTypeOptions.All,
             allowsMultipleSelection: true,
             quality: 0.8,
-            selectionLimit: 9 - images.length,
+            selectionLimit: 9 - mediaItems.length,
         });
 
         if (!result.canceled) {
-            const newImages = result.assets.map((asset) => asset.uri);
-            setImages((prev) => [...prev, ...newImages].slice(0, 9));
+            const newMedia = result.assets.map((asset) => ({
+                uri: asset.uri,
+                type: asset.type as 'image' | 'video',
+            }));
+            setMediaItems((prev) => [...prev, ...newMedia].slice(0, 9));
         }
     };
 
-    const removeImage = (index: number) => {
-        setImages((prev) => prev.filter((_, i) => i !== index));
+    const removeMedia = (index: number) => {
+        setMediaItems((prev) => prev.filter((_, i) => i !== index));
     };
 
     const handleSubmit = async () => {
-        if (!content.trim() && images.length === 0) {
-            Alert.alert('提示', '请输入内容或上传图片');
+        if (!content.trim() && mediaItems.length === 0) {
+            Alert.alert('提示', '请输入内容或上传图片/视频');
             return;
         }
 
@@ -88,15 +92,36 @@ export default function CreateScreen() {
         setIsLoading(true);
 
         try {
-            // Upload images first
+            // Seprate images and videos
+            const imagesToUpload = mediaItems.filter((m) => m.type === 'image');
+            const videoToUpload = mediaItems.find((m) => m.type === 'video');
+
+            if (videoToUpload && imagesToUpload.length > 0) {
+                // Currently only support either video or images, following Xiaohongshu style mostly
+                // But backend supports both? Let's check logic.
+                // The backend payload has `images` [] and `video` string.
+                // So technically we can support both.
+            }
+
+            // Upload images
             let uploadedImageUrls: string[] = [];
-            if (images.length > 0) {
-                for (const imageUri of images) {
-                    const fileName = imageUri.split('/').pop() || 'image.jpg';
-                    const uploaded = await uploadFile(imageUri, fileName, 'image/jpeg');
+            if (imagesToUpload.length > 0) {
+                for (const item of imagesToUpload) {
+                    const fileName = item.uri.split('/').pop() || 'image.jpg';
+                    const uploaded = await uploadFile(item.uri, fileName, 'image/jpeg');
                     if (uploaded && uploaded.length > 0) {
                         uploadedImageUrls.push(uploaded[0].src);
                     }
+                }
+            }
+
+            // Upload video
+            let uploadedVideoUrl = '';
+            if (videoToUpload) {
+                const fileName = videoToUpload.uri.split('/').pop() || 'video.mp4';
+                const uploaded = await uploadFile(videoToUpload.uri, fileName, 'video/mp4');
+                if (uploaded && uploaded.length > 0) {
+                    uploadedVideoUrl = uploaded[0].src;
                 }
             }
 
@@ -105,6 +130,7 @@ export default function CreateScreen() {
                 user_id: parseInt(user.id, 10),
                 text_content: content,
                 images: uploadedImageUrls,
+                video: uploadedVideoUrl || undefined,
                 tag_id: selectedTag.ID,
                 status: 'published',
             });
@@ -143,21 +169,36 @@ export default function CreateScreen() {
                         textAlignVertical="top"
                     />
 
-                    {/* Images */}
+                    {/* Media */}
                     <View style={styles.imagesContainer}>
-                        {images.map((uri, index) => (
+                        {mediaItems.map((item, index) => (
                             <View key={index} style={styles.imageWrapper}>
-                                <Image source={{ uri }} style={styles.image} />
+                                {item.type === 'video' ? (
+                                    <Video
+                                        source={{ uri: item.uri }}
+                                        style={styles.image}
+                                        resizeMode={ResizeMode.COVER}
+                                        shouldPlay={false}
+                                        isMuted
+                                    />
+                                ) : (
+                                    <Image source={{ uri: item.uri }} style={styles.image} />
+                                )}
+                                {item.type === 'video' && (
+                                    <View style={styles.videoIndicator}>
+                                        <Ionicons name="videocam" size={20} color="#fff" />
+                                    </View>
+                                )}
                                 <TouchableOpacity
                                     style={styles.removeButton}
-                                    onPress={() => removeImage(index)}
+                                    onPress={() => removeMedia(index)}
                                 >
                                     <Ionicons name="close-circle" size={24} color="#fff" />
                                 </TouchableOpacity>
                             </View>
                         ))}
-                        {images.length < 9 && (
-                            <TouchableOpacity style={styles.addImageButton} onPress={pickImages}>
+                        {mediaItems.length < 9 && (
+                            <TouchableOpacity style={styles.addImageButton} onPress={pickMedia}>
                                 <Ionicons name="add" size={32} color={Colors.text.muted} />
                             </TouchableOpacity>
                         )}
@@ -256,6 +297,15 @@ const styles = StyleSheet.create({
         width: 100,
         height: 100,
         borderRadius: BorderRadius.md,
+        backgroundColor: Colors.background.secondary,
+    },
+    videoIndicator: {
+        position: 'absolute',
+        bottom: 4,
+        right: 4,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        borderRadius: 8,
+        padding: 2,
     },
     removeButton: {
         position: 'absolute',

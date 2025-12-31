@@ -84,10 +84,11 @@ export function PostCardCompact({ post, onLike }: PostCardCompactProps) {
                     </View>
                 )}
 
-                {/* Video indicator */}
-                {post.videoUrl && (
-                    <View style={styles.videoIndicator}>
-                        <Ionicons name="play-circle" size={32} color="rgba(255,255,255,0.9)" />
+                {/* Video/Live indicator */}
+                {(post.videoUrl || (post.type === 'video')) && (
+                    <View style={styles.liveBadge}>
+                        <Ionicons name="aperture" size={12} color="#000" />
+                        <Text style={styles.liveText}>LIVE</Text>
                     </View>
                 )}
             </View>
@@ -177,14 +178,23 @@ const styles = StyleSheet.create({
         fontSize: 10,
         marginLeft: 2,
     },
-    videoIndicator: {
+    liveBadge: {
         position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        justifyContent: 'center',
+        top: Spacing.xs,
+        left: Spacing.xs,
+        flexDirection: 'row',
         alignItems: 'center',
+        backgroundColor: 'rgba(255,255,255,0.8)',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+        gap: 2,
+    },
+    liveText: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: '#000',
+        letterSpacing: 0.5,
     },
     content: {
         padding: Spacing.sm,

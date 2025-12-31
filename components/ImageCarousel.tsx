@@ -12,6 +12,7 @@ import {
     StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Video, ResizeMode } from 'expo-av';
 import { Colors, Spacing } from '../constants/theme';
 import { getMediaUrl } from '../services/api';
 
@@ -26,6 +27,12 @@ export function ImageCarousel({ images, onImagePress }: ImageCarouselProps) {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [showFullscreen, setShowFullscreen] = useState(false);
     const flatListRef = useRef<FlatList>(null);
+    const videoRef = useRef<Video>(null);
+
+    // Helper to check if url is a video
+    const isVideo = (url: string) => {
+        return url.toLowerCase().match(/\.(mp4|mov|avi|wmv|flv|webm)$/);
+    };
 
     if (!images || images.length === 0) {
         return null;
@@ -48,28 +55,66 @@ export function ImageCarousel({ images, onImagePress }: ImageCarouselProps) {
         }
     };
 
-    const renderItem = ({ item, index }: { item: string; index: number }) => (
-        <TouchableOpacity
-            activeOpacity={0.95}
-            onPress={() => handleImagePress(index)}
-        >
-            <Image
-                source={{ uri: getMediaUrl(item) }}
-                style={styles.image}
-                resizeMode="cover"
-            />
-        </TouchableOpacity>
-    );
+    const renderItem = ({ item, index }: { item: string; index: number }) => {
+        const isItemVideo = isVideo(item);
 
-    const renderFullscreenItem = ({ item }: { item: string }) => (
-        <View style={styles.fullscreenImageContainer}>
-            <Image
-                source={{ uri: getMediaUrl(item) }}
-                style={styles.fullscreenImage}
-                resizeMode="contain"
-            />
-        </View>
-    );
+        return (
+            <TouchableOpacity
+                activeOpacity={0.95}
+                onPress={() => handleImagePress(index)}
+            >
+                {isItemVideo ? (
+                    <View style={styles.videoContainer}>
+                        <Video
+                            source={{ uri: getMediaUrl(item) }}
+                            style={styles.image}
+                            resizeMode={ResizeMode.COVER}
+                            shouldPlay={currentIndex === index}
+                            isLooping
+                            isMuted={false}
+                            useNativeControls={false}
+                        />
+                        <View style={styles.liveBadge}>
+                            <Ionicons name="aperture" size={12} color="#000" />
+                            <Text style={styles.liveText}>LIVE</Text>
+                        </View>
+                    </View>
+                ) : (
+                    <Image
+                        source={{ uri: getMediaUrl(item) }}
+                        style={styles.image}
+                        resizeMode="cover"
+                    />
+                )}
+            </TouchableOpacity>
+        );
+    };
+
+    const renderFullscreenItem = ({ item, index }: { item: string; index: number }) => {
+        const isItemVideo = isVideo(item);
+        const isActive = currentIndex === index; // This might need adjustment for fullscreen index tracking
+
+        return (
+            <View style={styles.fullscreenImageContainer}>
+                {isItemVideo ? (
+                    <Video
+                        source={{ uri: getMediaUrl(item) }}
+                        style={styles.fullscreenImage}
+                        resizeMode={ResizeMode.CONTAIN}
+                        shouldPlay={isActive}
+                        isLooping
+                        useNativeControls
+                    />
+                ) : (
+                    <Image
+                        source={{ uri: getMediaUrl(item) }}
+                        style={styles.fullscreenImage}
+                        resizeMode="contain"
+                    />
+                )}
+            </View>
+        );
+    };
 
     return (
         <View style={styles.container}>
@@ -196,5 +241,26 @@ const styles = StyleSheet.create({
     fullscreenPageText: {
         color: '#fff',
         fontSize: 14,
+    },
+    videoContainer: {
+        position: 'relative',
+    },
+    liveBadge: {
+        position: 'absolute',
+        top: 12,
+        left: 12,
+        backgroundColor: 'rgba(255,255,255,0.8)',
+        borderRadius: 4,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+    },
+    liveText: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: '#000',
+        letterSpacing: 0.5,
     },
 });
